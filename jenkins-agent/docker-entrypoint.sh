@@ -1,5 +1,7 @@
 #!/bin/sh
 
+env
+
 if [ -f "/init" ]; then
     /init &
 fi
