@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 
+# Проверяем переменные окружения
 if [ -z "$ONEC_USERNAME" ]
 then
     echo "ONEC_USERNAME not set"
@@ -22,6 +23,7 @@ fi
 SRC=$(curl -c /tmp/cookies.txt -s -L https://releases.1c.ru)
 ACTION=$(echo "$SRC" | grep -oP '(?<=form method="post" id="loginForm" action=")[^"]+(?=")')
 EXECUTION=$(echo "$SRC" | grep -oP '(?<=input type="hidden" name="execution" value=")[^"]+(?=")')
+VERSION_PATH=$(echo $ONEC_VERSION | sed 's/\./_/g')
 
 curl -s -L \
     -o /dev/null \
@@ -35,97 +37,47 @@ curl -s -L \
     https://login.1c.ru"$ACTION"
 
 if ! grep -q "TGC" /tmp/cookies.txt
+
 then
     echo "Auth failed"
     exit 1
 fi
 
-if [[ "$installer_type" == "edt" ]]; then
-
-caption1="1C:Enterprise Development Tools для Linux 64 Bit"
-caption2="Дистрибутив для оффлайн установки 1C:EDT для ОС Linux 64 бит"
-
-EDTPATHLINK=$(curl -s -G \
--b /tmp/cookies.txt \
---data-urlencode "nick=DevelopmentTools10" \
---data-urlencode "ver=$ONEC_VERSION" \
-https://releases.1c.ru/version_files | grep -oP "(?<=a href=\")[^\"]+path=(.*)(?=\">(?:$caption1|$caption2)<)" | grep -oP '(?<=path=).*')
-
-EDTLINK=$(curl -s -G \
-    -b /tmp/cookies.txt \
-    --data-urlencode "nick=DevelopmentTools10" \
-    --data-urlencode "ver=$ONEC_VERSION" \
-    --data "path=$EDTPATHLINK" \
-    https://releases.1c.ru/version_file | grep -oP '(?<=a href=")[^"]+(?=">Скачать дистрибутив<)')
-else
-
-CLIENTLINK=$(curl -s -G \
-    -b /tmp/cookies.txt \
-    --data-urlencode "nick=Platform83" \
-    --data-urlencode "ver=$ONEC_VERSION" \
-    --data-urlencode "path=Platform\\${ONEC_VERSION//./_}\\client_${ONEC_VERSION//./_}.deb64.tar.gz" \
-    https://releases.1c.ru/version_file | grep -oP '(?<=a href=")[^"]+(?=">Скачать дистрибутив<)')
-
-CLIENT32LINK=$(curl -s -G \
-    -b /tmp/cookies.txt \
-    --data-urlencode "nick=Platform83" \
-    --data-urlencode "ver=$ONEC_VERSION" \
-    --data-urlencode "path=Platform\\${ONEC_VERSION//./_}\\client_${ONEC_VERSION//./_}.deb32.tar.gz" \
-    https://releases.1c.ru/version_file | grep -oP '(?<=a href=")[^"]+(?=">Скачать дистрибутив<)')
-
-THINCLIENTLINK=$(curl -s -G \
-    -b /tmp/cookies.txt \
-    --data-urlencode "nick=Platform83" \
-    --data-urlencode "ver=$ONEC_VERSION" \
-    --data-urlencode "path=Platform\\${ONEC_VERSION//./_}\\thin.client_${ONEC_VERSION//./_}.deb64.tar.gz" \
-    https://releases.1c.ru/version_file | grep -oP '(?<=a href=")[^"]+(?=">Скачать дистрибутив<)')
-
-THINCLIENT32LINK=$(curl -s -G \
-    -b /tmp/cookies.txt \
-    --data-urlencode "nick=Platform83" \
-    --data-urlencode "ver=$ONEC_VERSION" \
-    --data-urlencode "path=Platform\\${ONEC_VERSION//./_}\\thin.client_${ONEC_VERSION//./_}.deb32.tar.gz" \
-    https://releases.1c.ru/version_file | grep -oP '(?<=a href=")[^"]+(?=">Скачать дистрибутив<)')
-
-SERVERLINK=$(curl -s -G \
-    -b /tmp/cookies.txt \
-    --data-urlencode "nick=Platform83" \
-    --data-urlencode "ver=$ONEC_VERSION" \
-    --data-urlencode "path=Platform\\${ONEC_VERSION//./_}\\deb64_${ONEC_VERSION//./_}.tar.gz" \
-    https://releases.1c.ru/version_file | grep -oP '(?<=a href=")[^"]+(?=">Скачать дистрибутив<)')
-
-SERVER32LINK=$(curl -s -G \
-    -b /tmp/cookies.txt \
-    --data-urlencode "nick=Platform83" \
-    --data-urlencode "ver=$ONEC_VERSION" \
-    --data-urlencode "path=Platform\\${ONEC_VERSION//./_}\\deb_${ONEC_VERSION//./_}.tar.gz" \
-    https://releases.1c.ru/version_file | grep -oP '(?<=a href=")[^"]+(?=">Скачать дистрибутив<)')
-fi
-
+# Выбор типа установки и формирование ссылки
 case "$installer_type" in
-  edt)
-      echo "edt"
-      curl --fail -b /tmp/cookies.txt -o edt.tar.gz -L "$EDTLINK"
-      ;;
+  # Платформа 1С (сервер, толстый клиент)
   server)
-      curl --fail -b /tmp/cookies.txt -o server.tar.gz -L "$SERVERLINK"
-      ;;
-  server32)
-      curl --fail -b /tmp/cookies.txt -o server32.tar.gz -L "$SERVER32LINK"
-      ;;
-  client)
-      curl --fail -b /tmp/cookies.txt -o server.tar.gz -L "$SERVERLINK"
-      curl --fail -b /tmp/cookies.txt -o client.tar.gz -L "$CLIENTLINK"
-      ;;
-  client32)
-      curl --fail -b /tmp/cookies.txt -o server32.tar.gz -L "$SERVER32LINK"
-      curl --fail -b /tmp/cookies.txt -o client32.tar.gz -L "$CLIENT32LINK"
-      ;;
-  thin-client)
-      curl --fail -b /tmp/cookies.txt -o thin-client.tar.gz -L "$THINCLIENTLINK"
-      ;;
-  thin-client32)
-      curl --fail -b /tmp/cookies.txt -o thin-client32.tar.gz -L "$THINCLIENT32LINK"
+    echo "$0: Generating $installer_type download link"
+    # Формирование ссылки на загрузку
+    DOWNLOAD_LINK=$(curl -v -s -G \
+                    -b /tmp/cookies.txt $URL \
+                    --data-urlencode "nick=Platform83" \
+                    --data-urlencode "ver=$ONEC_VERSION" \
+                    --data-urlencode "path=Platform\\$VERSION_PATH\\server64_$VERSION_PATH.tar.gz" \
+                    https://releases.1c.ru/version_file \
+                    | grep -o '<a href="https://dl.*>Скачать дистрибутив</a>' \
+                    | uniq | sed -e 's/^<a href="//g' -e 's/">.*$//g')
+  ;;
+  # Тонкий клиент
+  thinclient)
+    echo "$0: Generating $installer_type download link"
+    # Формирование ссылки на загрузку
+    DOWNLOAD_LINK=$(curl -s -G \
+                    -b /tmp/cookies.txt $URL \
+                    --data-urlencode "nick=Platform83" \
+                    --data-urlencode "ver=$ONEC_VERSION" \
+                    --data-urlencode "path=Platform\\$VERSION_PATH\\thin.client64_$VERSION_PATH.tar.gz" \
+                    https://releases.1c.ru/version_file \
+                    | grep -o '<a href="https://dl.*>Скачать дистрибутив</a>' \
+                    | uniq | sed -e 's/^<a href="//g' -e 's/">.*$//g')
+  ;;
 esac
 
+# Процесс загрузки
+echo "$0: Downloading $installer_type"
+curl -b /tmp/cookies.txt -o $installer_type.tar.gz -L "$DOWNLOAD_LINK"
+
+# Очистка куков
 rm /tmp/cookies.txt
+
+exit 0
