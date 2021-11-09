@@ -19,11 +19,10 @@ RUN apk --no-cache add bash curl grep sed \
   && for file in *.tar.gz; do tar -zxf "$file"; done \
   && rm -rf *.tar.gz
 
-FROM debian:bullseye-slim
+FROM ubuntu:latest as base
 
 ARG gosu_ver=1.11
-ARG onec_uid="999"
-ARG onec_gid="999"
+
 ARG ONEC_VERSION
 ENV ONEC_VERSION=$ONEC_VERSION
 
@@ -34,18 +33,23 @@ RUN set -xe \
       locales \
       imagemagick \
       fontconfig \
-      libgtk \
+      libgtk-3-0 \
+      libenchant1c2a \
+      libharfbuzz-icu0 \
+      libgstreamer1.0-0 \
+      libgstreamer-plugins-base1.0-0 \
+      gstreamer1.0-plugins-good \
+      gstreamer1.0-plugins-bad \
+      libsecret-1-0 \
+      libgl1 \
+      libegl1 \
+      libxslt1.1 \
+      geoclue-2.0 \
   && rm -rf \
     /var/lib/apt/lists/* \
     /var/cache/debconf \
   && localedef -i ru_RU -c -f UTF-8 -A /usr/share/locale/locale.alias ru_RU.UTF-8
 ENV LANG ru_RU.UTF-8
-
-# Создание пользователей
-RUN groupadd -r grp1cv8 --gid=$onec_gid \
-  && useradd -r -g grp1cv8 --uid=$onec_uid --home-dir=/home/usr1cv8 --shell=/bin/bash usr1cv8 \
-  && mkdir -p /var/log/1C /home/usr1cv8/.1cv8/1C/1cv8/conf /opt/1cv8/current/conf \
-  && chown -R usr1cv8:grp1cv8 /var/log/1C /home/usr1cv8
 
 # Копирование дистрибутива
 COPY --from=downloader /tmp/setup-full-$ONEC_VERSION-x86_64.run /tmp/setup.run
@@ -68,6 +72,32 @@ RUN chmod +x /create-symlink-to-current-1cv8.sh \
 ADD https://github.com/tianon/gosu/releases/download/$gosu_ver/gosu-amd64 /bin/gosu
 
 RUN chmod +x /bin/gosu
+
+FROM debian:bullseye-slim
+
+ARG onec_uid="999"
+ARG onec_gid="999"
+
+COPY --from=base /opt /opt
+COPY --from=base /bin/gosu /bin/gosu
+
+RUN set -xe \
+  && apt-get update \
+  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      locales \
+      imagemagick \
+      fontconfig \
+  && rm -rf \
+    /var/lib/apt/lists/* \
+    /var/cache/debconf \
+  && localedef -i ru_RU -c -f UTF-8 -A /usr/share/locale/locale.alias ru_RU.UTF-8
+ENV LANG ru_RU.UTF-8
+
+# Создание пользователей
+RUN groupadd -r grp1cv8 --gid=$onec_gid \
+  && useradd -r -g grp1cv8 --uid=$onec_uid --home-dir=/home/usr1cv8 --shell=/bin/bash usr1cv8 \
+  && mkdir -p /var/log/1C /home/usr1cv8/.1cv8/1C/1cv8/conf /opt/1cv8/current/conf \
+  && chown -R usr1cv8:grp1cv8 /var/log/1C /home/usr1cv8
 
 VOLUME /home/usr1cv8/.1cv8 /var/log/1C
 
